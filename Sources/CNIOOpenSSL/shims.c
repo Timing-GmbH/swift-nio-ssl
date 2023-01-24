@@ -150,7 +150,7 @@ void CNIOOpenSSL_SSL_get0_alpn_selected(const SSL *ssl,
 }
 
 int CNIOOpenSSL_BIO_get_init(BIO *bio) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     return bio->init;
 #else
     return BIO_get_init(bio);
@@ -158,7 +158,7 @@ int CNIOOpenSSL_BIO_get_init(BIO *bio) {
 }
 
 void CNIOOpenSSL_BIO_set_init(BIO *bio, int init) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     bio->init = init;
 #else
     BIO_set_init(bio, init);
@@ -166,7 +166,7 @@ void CNIOOpenSSL_BIO_set_init(BIO *bio, int init) {
 }
 
 void *CNIOOpenSSL_BIO_get_data(BIO *bio) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     return bio->ptr;
 #else
     return BIO_get_data(bio);
@@ -174,7 +174,7 @@ void *CNIOOpenSSL_BIO_get_data(BIO *bio) {
 }
 
 void CNIOOpenSSL_BIO_set_data(BIO *bio, void *ptr) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     bio->ptr = ptr;
 #else
     BIO_set_data(bio, ptr);
@@ -182,7 +182,7 @@ void CNIOOpenSSL_BIO_set_data(BIO *bio, void *ptr) {
 }
 
 int CNIOOpenSSL_BIO_get_shutdown(BIO *bio) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     return bio->shutdown;
 #else
     return BIO_get_shutdown(bio);
@@ -190,7 +190,7 @@ int CNIOOpenSSL_BIO_get_shutdown(BIO *bio) {
 }
 
 void CNIOOpenSSL_BIO_set_shutdown(BIO *bio, int shut) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     bio->shutdown = shut;
 #else
     BIO_set_shutdown(bio, shut);
@@ -206,7 +206,7 @@ void CNIOOpenSSL_BIO_set_retry_read(BIO *bio) {
 }
 
 int CNIOOpenSSL_BIO_up_ref(BIO *bio) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     CRYPTO_add(&bio->references, 1, CRYPTO_LOCK_BIO);
     return 1;
 #else

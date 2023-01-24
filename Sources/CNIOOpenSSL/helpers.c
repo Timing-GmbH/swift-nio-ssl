@@ -33,7 +33,7 @@ int CNIOOpenSSL_ByteBufferBIOType = 0;
 
 static const char * const bio_name = "ByteBuffer BIO";
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
 /// In the older OpenSSL's, we embed this structure statically into this compilation unit and
 /// point at it. It begins nil'd out, as we want to be able to set the values from Swift code.
 static BIO_METHOD byte_buffer_bio_method_actual = { 0 };
@@ -50,7 +50,7 @@ void CNIOOpenSSL_initByteBufferBIO(int (*bioWriteFunc)(void *, const char *, int
                                    int (*bioDestroyFunc)(void *)) {
     assert(CNIOOpenSSL_ByteBufferBIOType == 0);
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x30500000L)
     // In newer versions of OpenSSL we have BIO_get_new_index, but here we don't, so we
     // pick a "random" number between 128 (what OpenSSL calls BIO_TYPE_START), and
     // 256 (the beginning of the bitfield for BIO_TYPE_DESCRIPTOR). I've decided I
