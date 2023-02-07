@@ -25,6 +25,7 @@
 #include <openssl/rand.h>
 #include <openssl/pkcs12.h>
 #include <openssl/x509v3.h>
+#include <openssl/ossl_typ.h>  // For CRYPTO_EX_new
 
 /// Initialize OpenSSL.
 ///
