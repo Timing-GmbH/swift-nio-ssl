@@ -30,6 +30,9 @@ import Musl
 import Glibc
 #elseif canImport(Android)
 import Android
+#elseif canImport(WinSDK)
+import WinSDK
+import ucrt
 #else
 #error("unsupported os")
 #endif
@@ -40,6 +43,33 @@ internal typealias FILEPointer = OpaquePointer
 internal typealias FILEPointer = UnsafeMutablePointer<FILE>
 #endif
 
+#if os(Windows)
+// ucrt spells the 64-bit stat buffer `_stat64`; POSIX spells it `stat`.
+internal typealias stat = _stat64
+#endif
+
+#if os(Windows)
+// ucrt exposes `errno` only through the `_errno()` accessor.
+private var errno: CInt { _errno().pointee }
+
+// Windows has no `mlock`/`munlock`. `VirtualLock`/`VirtualUnlock` are the equivalent, but
+// they report failure as FALSE rather than -1 + errno, so translate. The only caller
+// (SSLPKCS12Bundle) treats mlock as best-effort hardening.
+private let sysMlock: @Sendable (UnsafeRawPointer, Int) -> CInt = { addr, len in
+    VirtualLock(UnsafeMutableRawPointer(mutating: addr), SIZE_T(len)) ? 0 : -1
+}
+private let sysMunlock: @Sendable (UnsafeRawPointer, Int) -> CInt = { addr, len in
+    VirtualUnlock(UnsafeMutableRawPointer(mutating: addr), SIZE_T(len)) ? 0 : -1
+}
+// ucrt has no `lstat`: Windows reparse points are not POSIX symlinks and `_stat64` always
+// follows them. The single caller (`_isRehashFormat`) is fenced off on Windows.
+private let sysLstat: @Sendable (UnsafePointer<CChar>, UnsafeMutablePointer<stat>) -> CInt = { path, buf in
+    _stat64(path, buf)
+}
+private let sysStat: @Sendable (UnsafePointer<CChar>, UnsafeMutablePointer<stat>) -> CInt = { _stat64($0, $1) }
+private let sysFopen = fopen
+private let sysFclose = fclose
+#else
 private let sysFopen = fopen
 private let sysMlock = mlock
 private let sysMunlock = munlock
@@ -47,6 +77,7 @@ private let sysFclose = fclose
 private let sysStat = { @Sendable in stat($0, $1) }
 private let sysLstat = lstat
 private let sysReadlink = readlink
+#endif
 
 // MARK:- Copied code from SwiftNIO
 private func isUnacceptableErrno(_ code: CInt) -> Bool {
@@ -113,6 +144,7 @@ internal enum Posix {
         }
     }
 
+    #if !os(Windows)
     @inline(never)
     internal static func readlink(
         path: UnsafePointer<Int8>,
@@ -123,6 +155,7 @@ internal enum Posix {
             sysReadlink(path, buf, bufSize)
         }
     }
+    #endif
 
     @inline(never)
     @discardableResult
@@ -142,7 +175,7 @@ internal enum Posix {
 
     @inline(never)
     @discardableResult
-    internal static func mlock(addr: UnsafeRawPointer, len: size_t) throws -> CInt {
+    internal static func mlock(addr: UnsafeRawPointer, len: Int) throws -> CInt {
         try wrapSyscall {
             sysMlock(addr, len)
         }
@@ -150,7 +183,7 @@ internal enum Posix {
 
     @inline(never)
     @discardableResult
-    internal static func munlock(addr: UnsafeRawPointer, len: size_t) throws -> CInt {
+    internal static func munlock(addr: UnsafeRawPointer, len: Int) throws -> CInt {
         try wrapSyscall {
             sysMunlock(addr, len)
         }

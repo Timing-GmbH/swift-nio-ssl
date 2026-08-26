@@ -64,6 +64,44 @@ let strictConcurrencySettings: [SwiftSetting] = {
     return initialSettings
 }()
 
+// WINDOWS (Timing fork, branch `windows-port`).
+//
+// Two separate problems, both solved by defines rather than by touching BoringSSL's sources:
+//
+//  1. Recent Windows SDKs (e.g. 10.0.26100) make <windows.h> pull in headers whose symbols
+//     collide with BoringSSL's: the legacy <winsock.h> (vs the <winsock2.h> BoringSSL includes),
+//     the min()/max() macros, and <wincrypt.h> (X509_NAME, X509_EXTENSIONS, X509_CERT_PAIR).
+//     Suppress just those.
+//
+//     This is upstream PR #585, merged 2026-06-01 and first released in 2.37.0. Timing pins
+//     **2.36.1**, which predates it, so the three defines are reproduced here rather than
+//     inherited. When the pin moves to >= 2.37.0, delete them and keep only OPENSSL_NO_ASM.
+//
+//  2. This vendoring ships x86-64 assembly only in Apple/Linux (GAS) syntax; the Windows x86-64
+//     flavour is NASM `.asm`, which SwiftPM cannot assemble, and only the *aarch64* `-win.S`
+//     files are present. Without OPENSSL_NO_ASM the link fails with ~20 undefined symbols
+//     (CNIOBoringSSL_aes_hw_encrypt, CNIOBoringSSL_ChaCha20_ctr32_avx2, ...).
+//
+//     WARNING: OPENSSL_NO_ASM is NOT free. AES-NI, AVX2 ChaCha20-Poly1305 and PCLMULQDQ GHASH
+//     are all disabled, and BoringSSL's portable C AES is not constant-time the way the
+//     hardware path is. Tracked as item 1b in Swift-Windows/docs/MUST-FIX-BEFORE-SHIP.md.
+//
+// Every entry is `.when(platforms: [.windows])`, so macOS and Linux builds are byte-identical to
+// upstream.
+let windowsBoringSSLCDefines: [CSetting] = [
+    .define("_WINSOCKAPI_", .when(platforms: [.windows])),
+    .define("NOMINMAX", .when(platforms: [.windows])),
+    .define("NOCRYPT", .when(platforms: [.windows])),
+    .define("OPENSSL_NO_ASM", .when(platforms: [.windows])),
+]
+
+let windowsBoringSSLCXXDefines: [CXXSetting] = [
+    .define("_WINSOCKAPI_", .when(platforms: [.windows])),
+    .define("NOMINMAX", .when(platforms: [.windows])),
+    .define("NOCRYPT", .when(platforms: [.windows])),
+    .define("OPENSSL_NO_ASM", .when(platforms: [.windows])),
+]
+
 // swift-format-ignore: NoBlockComments
 let package = Package(
     name: "swift-nio-ssl",
@@ -79,11 +117,12 @@ let package = Package(
     targets: [
         .target(
             name: "CNIOBoringSSL",
-            cSettings: [
+            cSettings: windowsBoringSSLCDefines + [
                 .define("_GNU_SOURCE"),
                 .define("_POSIX_C_SOURCE", to: "200112L"),
                 .define("_DARWIN_C_SOURCE"),
-            ]
+            ],
+            cxxSettings: windowsBoringSSLCXXDefines
         ),
         .target(
             name: "CNIOBoringSSLShims",

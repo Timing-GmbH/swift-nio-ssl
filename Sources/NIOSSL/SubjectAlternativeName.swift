@@ -24,6 +24,9 @@ import Musl
 import Glibc
 #elseif canImport(Android)
 import Android
+#elseif canImport(WinSDK)
+import WinSDK
+import ucrt
 #else
 #error("unsupported os")
 #endif
@@ -208,7 +211,12 @@ extension _SubjectAlternativeName.IPAddress: CustomStringConvertible {
         var address = address
         var dest: [CChar] = Array(repeating: 0, count: Self.ipv4AddressLength)
         dest.withUnsafeMutableBufferPointer { pointer in
+            #if os(Windows)
+            // Win32 InetNtopA takes a `size_t`, not a `socklen_t`.
+            let result = inet_ntop(AF_INET, &address, pointer.baseAddress!, pointer.count)
+            #else
             let result = inet_ntop(AF_INET, &address, pointer.baseAddress!, socklen_t(pointer.count))
+            #endif
             precondition(
                 result != nil,
                 "The IP address was invalid. This should never happen as we're within the IP address struct."
@@ -221,7 +229,12 @@ extension _SubjectAlternativeName.IPAddress: CustomStringConvertible {
         var address = address
         var dest: [CChar] = Array(repeating: 0, count: Self.ipv6AddressLength)
         dest.withUnsafeMutableBufferPointer { pointer in
+            #if os(Windows)
+            // Win32 InetNtopA takes a `size_t`, not a `socklen_t`.
+            let result = inet_ntop(AF_INET6, &address, pointer.baseAddress!, pointer.count)
+            #else
             let result = inet_ntop(AF_INET6, &address, pointer.baseAddress!, socklen_t(pointer.count))
+            #endif
             precondition(
                 result != nil,
                 "The IP address was invalid. This should never happen as we're within the IP address struct."

@@ -23,6 +23,9 @@ import Musl
 import Glibc
 #elseif canImport(Android)
 import Android
+#elseif canImport(WinSDK)
+import WinSDK
+import ucrt
 #else
 #error("unsupported os")
 #endif

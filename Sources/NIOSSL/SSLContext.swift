@@ -24,6 +24,9 @@ import Musl
 import Glibc
 #elseif canImport(Android)
 import Android
+#elseif canImport(WinSDK)
+import WinSDK
+import ucrt
 #else
 #error("unsupported os")
 #endif
@@ -47,6 +50,9 @@ internal enum FileSystemObject {
 
         #if os(Android) && arch(arm)
         return (statObj.st_mode & UInt32(S_IFDIR)) != 0 ? .directory : .file
+        #elseif os(Windows)
+        // ucrt's `st_mode` is UInt16; `S_IFDIR` imports as Int32.
+        return (statObj.st_mode & UInt16(S_IFDIR)) != 0 ? .directory : .file
         #else
         return (statObj.st_mode & S_IFDIR) != 0 ? .directory : .file
         #endif
@@ -787,6 +793,11 @@ extension NIOSSLContext {
         else { return false }
 
         // Check if the element is a symlink. If it is not, return false.
+        #if os(Windows)
+        // Windows has no POSIX symlink mode bit, and OpenSSL's c_rehash symlink
+        // convention is a Unix deployment idiom that does not occur on Windows.
+        return false
+        #else
         var buffer = stat()
         let _ = try Posix.lstat(path: path, buf: &buffer)
         // Check the mode to make sure this is a symlink
@@ -794,6 +805,7 @@ extension NIOSSLContext {
         if (buffer.st_mode & UInt32(S_IFMT)) != UInt32(S_IFLNK) { return false }
         #else
         if (buffer.st_mode & S_IFMT) != S_IFLNK { return false }
+        #endif
         #endif
 
         // Return true at this point because the file format is considered to be in rehash format and a symlink.
@@ -911,6 +923,54 @@ extension Optional where Wrapped == String {
     }
 }
 
+#if os(Windows)
+/// Windows replacement for the opendir/readdir/closedir iterator below. Enumerates with
+/// FindFirstFileW/FindNextFileW and yields `path + name`, matching the POSIX arm's contract
+/// (including `.` and `..`, which the POSIX arm also yields).
+internal class DirectoryContents: Sequence, IteratorProtocol {
+    typealias Element = String
+    let path: String
+    private var handle: HANDLE?
+    private var pending: String?
+
+    private static func name(_ data: inout WIN32_FIND_DATAW) -> String {
+        withUnsafePointer(to: &data.cFileName) {
+            $0.withMemoryRebound(to: UInt16.self, capacity: Int(MAX_PATH)) {
+                String(decodingCString: $0, as: UTF16.self)
+            }
+        }
+    }
+
+    init(path: String) {
+        self.path = path
+        var data = WIN32_FIND_DATAW()
+        let sepBS = String(UnicodeScalar(92))
+        let sepFS = String(UnicodeScalar(47))
+        let star = String(UnicodeScalar(42))
+        let pattern = path.hasSuffix(sepBS) || path.hasSuffix(sepFS) ? path + star : path + sepBS + star
+        let h = pattern.withCString(encodedAs: UTF16.self) { FindFirstFileW($0, &data) }
+        if h != INVALID_HANDLE_VALUE {
+            self.handle = h
+            self.pending = Self.name(&data)
+        }
+    }
+
+    func next() -> String? {
+        guard let handle = self.handle, let name = self.pending else { return nil }
+        var data = WIN32_FIND_DATAW()
+        if FindNextFileW(handle, &data) {
+            self.pending = Self.name(&data)
+        } else {
+            self.pending = nil
+        }
+        return self.path + name
+    }
+
+    deinit {
+        if let handle = self.handle, handle != INVALID_HANDLE_VALUE { FindClose(handle) }
+    }
+}
+#else
 internal class DirectoryContents: Sequence, IteratorProtocol {
 
     typealias Element = String
@@ -945,6 +1005,7 @@ internal class DirectoryContents: Sequence, IteratorProtocol {
         closedir(dir)
     }
 }
+#endif
 
 // Used as part of the `_isRehashFormat` format to determine if the filename is a hexadecimal filename.
 extension UTF8.CodeUnit {
