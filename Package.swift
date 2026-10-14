@@ -145,7 +145,9 @@ let package = Package(
             ],
             exclude: includePrivacyManifest ? [] : ["PrivacyInfo.xcprivacy"],
             resources: includePrivacyManifest ? [.copy("PrivacyInfo.xcprivacy")] : [],
-            swiftSettings: strictConcurrencySettings
+            swiftSettings: strictConcurrencySettings,
+            // crypt32: the default trust roots on Windows are Windows' chain engine.
+            linkerSettings: [.linkedLibrary("crypt32", .when(platforms: [.windows]))]
         ),
         .executableTarget(
             name: "NIOTLSServer",

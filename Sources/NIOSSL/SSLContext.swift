@@ -523,7 +523,7 @@ public final class NIOSSLContext {
 
         let conn = SSLConnection(ownedSSL: ssl, parentContext: self)
 
-        // If we need to turn on the validation on Apple platforms, do it here.
+        // If we need to turn on the validation on Apple platforms or Windows, do it here.
         #if canImport(Darwin)
         switch self.configuration.trustRoots {
         case .some(.default), .none:
@@ -538,6 +538,15 @@ public final class NIOSSLContext {
                         $0.fail(error)
                     }
                 })
+            )
+        case .some(.certificates), .some(.file):
+            break
+        }
+        #elseif os(Windows)
+        switch self.configuration.trustRoots {
+        case .some(.default), .none:
+            conn.setCustomVerificationCallback(
+                CustomVerifyManager(callback: { conn.performWindowsCertificateValidation(promise: $0) })
             )
         case .some(.certificates), .some(.file):
             break
@@ -729,7 +738,7 @@ extension NIOSSLContext {
     private static func platformDefaultConfiguration(context: OpaquePointer) throws {
         // Platform default trust is configured differently in different places.
         // On Linux, we use our searched heuristics to guess about where the platform trust store is.
-        // On Darwin, we use a custom callback that is set later, in createConnection
+        // On Darwin and Windows, we use a custom callback that is set later, in createConnection
         #if os(Linux)
         let result = rootCAFilePath.withCString { rootCAFilePointer in
             rootCADirectoryPath.withCString { rootCADirectoryPointer in
